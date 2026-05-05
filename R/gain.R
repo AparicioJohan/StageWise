@@ -34,7 +34,7 @@
 #' 
 #' @import ggplot2
 #' @importFrom ggforce geom_ellipse
-#' @importFrom CVXR Variable quad_form Maximize Problem
+#' @importFrom CVXR Variable quad_form Maximize Problem psolve value status
 #' @export
 
 gain <- function(input, merit=NULL, desired=NULL, restricted=NULL,
@@ -161,10 +161,11 @@ gain <- function(input, merit=NULL, desired=NULL, restricted=NULL,
     v <- matrix(merit,nrow=1)
     objective <- Maximize(v%*%x)
     problem <- Problem(objective,constraints)
-    result <- solve(problem,solver=solver)
-    if (result$status!="optimal")
+    opt_val <- psolve(problem, solver=solver)
+    if (status(problem)!="optimal")
       stop("Convex solver failed")
-    x.opt <- as.numeric(result$getValue(x))
+    #x.opt <- as.numeric(result$getValue(x))
+    x.opt <- CVXR::value(x)
   } 
   if (!is.null(desired)) {
     iv <- match(trait.names,names(desired),nomatch=0)
