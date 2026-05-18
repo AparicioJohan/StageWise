@@ -1,4 +1,4 @@
-#' @importFrom CVXR Variable Minimize Problem psolve value
+#' @importFrom CVXR Variable Minimize Problem psolve value norm
 #'
 sigdig <- function(x,digits=3) {
   m <- digits - ceiling(log10(max(abs(x),na.rm=T)))
@@ -91,7 +91,7 @@ coerce_dpo <- function(x) {
 fu <- function(x) {
   n.trait <- nrow(x)
   V <- Variable(c(n.trait,n.trait),PSD=TRUE)
-  solved <- psolve(Problem(Minimize(norm(V-x,type="F"))),solver="SCS")
+  solved <- psolve(Problem(Minimize(CVXR::norm(V-x,type="F"))),solver="SCS")
   V1 <- CVXR::value(V)
   #V1 <- solved$getValue(V)
   dimnames(V1) <- dimnames(x)
