@@ -27,16 +27,41 @@ pvar <- function(mu=0,V=NULL,weights=NULL) {
   as.numeric(x)
 }
 
-kron <- function(eigen.A, B) {
-  #returns Q such that QtQ is solution
-  #eigen.B <- eigen(B)
+eigen_inverse <- function(eigen.A) {
+  #A^-1 from its eigendecomposition, with dimnames
+  A.inv <- tcrossprod(eigen.A$vectors %*% Diagonal(x=1/eigen.A$values), eigen.A$vectors)
+  dimnames(A.inv) <- dimnames(eigen.A$vectors)
+  A.inv
+}
+
+bdiag2 <- function(A, B) {
+  #block-diagonal of A and B. Unlike Matrix::bdiag, the result stays DENSE when the
+  #blocks are dense: a bdiag() of two dense blocks is a "sparse" matrix that is ~50%
+  #nonzero, and every downstream product then runs through Matrix's sparse code
+  #instead of BLAS. Dimnames are dropped, as bdiag() does.
+  if (is(A,"sparseMatrix") & is(B,"sparseMatrix"))
+    return(bdiag(A,B))
+  nA <- nrow(A)
+  nB <- nrow(B)
+  out <- matrix(0, nrow=nA+nB, ncol=nA+nB)
+  out[1:nA, 1:nA] <- as.matrix(A)
+  out[nA+(1:nB), nA+(1:nB)] <- as.matrix(B)
+  Matrix(out)
+}
+
+kron2 <- function(A, A.inv, B) {
+  #returns list(mat = A %x% B, inv = A^-1 %x% B^-1)
+  #identical to list(crossprod(kron(eigen.A,B)$mat), crossprod(kron(eigen.A,B)$inv)),
+  #but O(m^2) instead of O(m^3), where m = nrow(A)*nrow(B)
   tmp <- svd(B)
-  eigen.B <- list(values=tmp$d,vectors=tmp$u)
-  V1 <- kronecker(Diagonal(x=sqrt(eigen.A$values)),Diagonal(x=sqrt(eigen.B$values)))
-  V1.inv <- kronecker(Diagonal(x=1/sqrt(eigen.A$values)),Diagonal(x=1/sqrt(eigen.B$values)))
-  V2 <- as(as(Matrix(eigen.B$vectors,dimnames=list(rownames(B),rownames(B))),"generalMatrix"),"unpackedMatrix")
-  V3 <- kronecker(eigen.A$vectors,V2,make.dimnames=T)
-  return(list(mat=tcrossprod(V1,V3), inv=tcrossprod(V1.inv,V3)))
+  nb <- length(tmp$d)
+  bnames <- list(rownames(B),rownames(B))
+  unpack <- function(x) as(as(Matrix(x,dimnames=bnames),"generalMatrix"),"unpackedMatrix")
+  B2 <- unpack(tcrossprod(tmp$u %*% diag(tmp$d,nrow=nb), tmp$u))
+  B2.inv <- unpack(tcrossprod(tmp$u %*% diag(1/tmp$d,nrow=nb), tmp$u))
+
+  list(mat=kronecker(A, B2, make.dimnames=TRUE),
+       inv=kronecker(A.inv, B2.inv, make.dimnames=TRUE))
 }
 
 Keff <- function(r2,alpha) {

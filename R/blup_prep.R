@@ -133,11 +133,9 @@ blup_prep <- function(data,vcov=NULL,geno=NULL,vars,mask=NULL,method=NULL) {
     
     tmp <- split(data$id,data$env)
     tmp2 <- lapply(tmp,function(id) {
-      n.id <- length(id)
-      #eigen.I <- list(values=rep(1,n.id),vectors=as(Diagonal(n.id,1),"dgeMatrix"))
-      eigen.I <- list(values=rep(1,n.id),vectors=as(as(Diagonal(n.id,1),"generalMatrix"),"unpackedMatrix"))
-      dimnames(eigen.I$vectors) <- list(id,id)
-      crossprod(kron(eigen.I,vars@resid)$mat)
+      I.mat <- Diagonal(n=length(id))
+      dimnames(I.mat) <- list(id,id)
+      kron2(A=I.mat, A.inv=I.mat, B=vars@resid)$mat
     })
     Rlist <- mapply(function(Q,rnames){
                     Q[rnames,rnames]},
@@ -159,9 +157,17 @@ blup_prep <- function(data,vcov=NULL,geno=NULL,vars,mask=NULL,method=NULL) {
     data <- merge(data,dat2,by="id")
   }
   
-  eigen.I <- list(values=rep(1,n.id),vectors=as(as(Diagonal(n.id,1),"generalMatrix"),"unpackedMatrix"))
-  dimnames(eigen.I$vectors) <- list(id,id)
-  
+  I.mat <- Diagonal(n=n.id)
+  dimnames(I.mat) <- list(id,id)
+
+  #Gmat$mat is the var-cov matrix of the random effects, Gmat$inv its inverse
+  Gvar <- function(B, which=c("I","G","D")) {
+    switch(match.arg(which),
+           I = kron2(A=I.mat, A.inv=I.mat, B=B),
+           G = kron2(A=geno@G, A.inv=eigen_inverse(geno@eigen.G), B=B),
+           D = kron2(A=geno@D, A.inv=eigen_inverse(geno@eigen.D), B=B))
+  }
+
   if (n.trait==1) {
     if (n.env > 1) {
       X <- sparse.model.matrix(~env-1,data,sep = "__")
@@ -181,14 +187,14 @@ blup_prep <- function(data,vcov=NULL,geno=NULL,vars,mask=NULL,method=NULL) {
       Z <- Z[,Znames] #loc within id
       
       if (is.null(geno)) {
-        Gmat <- kron(eigen.A=eigen.I, B=vars@geno1)
+        Gmat <- Gvar(B=vars@geno1, which="I")
       } else {
         if (vars@model==1L) {
-          Gmat <- kron(eigen.A=geno@eigen.G, B=vars@geno1)
+          Gmat <- Gvar(B=vars@geno1, which="G")
         } else {
-          Gmat1 <- kron(eigen.A=geno@eigen.G, B=vars@geno1)
+          Gmat1 <- Gvar(B=vars@geno1, which="G")
           if (vars@model==3L) {
-            Gmat2 <- kron(eigen.A=geno@eigen.D, B=vars@geno2)
+            Gmat2 <- Gvar(B=vars@geno2, which="D")
           
             #add to X matrix
             dom.covariate <- Z %*% kronecker((geno@coeff.D/(geno@scale*(ploidy-1))) %*% 
@@ -196,9 +202,9 @@ blup_prep <- function(data,vcov=NULL,geno=NULL,vars,mask=NULL,method=NULL) {
             colnames(dom.covariate) <- paste("heterosis",locations,sep=":")
             X <- cbind(X,dom.covariate)
           } else {
-            Gmat2 <- kron(eigen.A=eigen.I, B=vars@geno2)
+            Gmat2 <- Gvar(B=vars@geno2, which="I")
           }
-          Gmat <- list(mat=bdiag(Gmat1$mat,Gmat2$mat),inv=bdiag(Gmat1$inv,Gmat2$inv))
+          Gmat <- list(mat=bdiag2(Gmat1$mat,Gmat2$mat),inv=bdiag2(Gmat1$inv,Gmat2$inv))
         }
       } 
     } else {
@@ -207,21 +213,21 @@ blup_prep <- function(data,vcov=NULL,geno=NULL,vars,mask=NULL,method=NULL) {
       colnames(Z) <- sub("id__","",colnames(Z),fixed=T)
 
       if (is.null(geno)) {
-        Gmat <- kron(eigen.A = eigen.I, B=vars@geno1)
+        Gmat <- Gvar(B=vars@geno1, which="I")
       } else {
         if (vars@model==1L) {
-          Gmat <- kron(eigen.A = geno@eigen.G, B=vars@geno1)
+          Gmat <- Gvar(B=vars@geno1, which="G")
         } else {
-          Gmat1 <- kron(eigen.A = geno@eigen.G, B=vars@geno1)
+          Gmat1 <- Gvar(B=vars@geno1, which="G")
           if (vars@model==3L) {
-            Gmat2 <- kron(eigen.A=geno@eigen.D, B=vars@geno2)
+            Gmat2 <- Gvar(B=vars@geno2, which="D")
             dom.covariate <- as.numeric(Z %*% (geno@coeff.D/(geno@scale*(ploidy-1))) %*% 
                                           matrix(1,nrow=ncol(geno@coeff.D),ncol=1))
             X <- cbind(X,heterosis=dom.covariate)
           } else {
-            Gmat2 <- kron(eigen.A=eigen.I, B=vars@geno2)
+            Gmat2 <- Gvar(B=vars@geno2, which="I")
           }
-          Gmat <- list(mat=bdiag(Gmat1$mat,Gmat2$mat),inv=bdiag(Gmat1$inv,Gmat2$inv))
+          Gmat <- list(mat=bdiag2(Gmat1$mat,Gmat2$mat),inv=bdiag2(Gmat1$inv,Gmat2$inv))
         }
       }
     }
@@ -247,14 +253,14 @@ blup_prep <- function(data,vcov=NULL,geno=NULL,vars,mask=NULL,method=NULL) {
     Z <- Z[,Znames] #trait within id
 
     if (is.null(geno)) {
-      Gmat <- kron(eigen.A=eigen.I, B=vars@geno1)
+      Gmat <- Gvar(B=vars@geno1, which="I")
     } else {
       if (vars@model==1L) {
-        Gmat <- kron(eigen.A=geno@eigen.G, B=vars@geno1)
+        Gmat <- Gvar(B=vars@geno1, which="G")
       } else {
-        Gmat1 <- kron(eigen.A=geno@eigen.G, B=vars@geno1)
+        Gmat1 <- Gvar(B=vars@geno1, which="G")
         if (vars@model==3L) {
-          Gmat2 <- kron(eigen.A=geno@eigen.D, B=vars@geno2)
+          Gmat2 <- Gvar(B=vars@geno2, which="D")
         
           #add to X matrix
           dom.covariate <- Z %*% kronecker((geno@coeff.D/(geno@scale*(ploidy-1))) %*%
@@ -262,9 +268,9 @@ blup_prep <- function(data,vcov=NULL,geno=NULL,vars,mask=NULL,method=NULL) {
           colnames(dom.covariate) <- paste("heterosis",traits,sep=":")
           X <- cbind(X,dom.covariate)
         } else {
-          Gmat2 <- kron(eigen.A=eigen.I, B=vars@geno2)
+          Gmat2 <- Gvar(B=vars@geno2, which="I")
         }
-        Gmat <- list(mat=bdiag(Gmat1$mat,Gmat2$mat),inv=bdiag(Gmat1$inv,Gmat2$inv))
+        Gmat <- list(mat=bdiag2(Gmat1$mat,Gmat2$mat),inv=bdiag2(Gmat1$inv,Gmat2$inv))
       }
     } 
   }
@@ -318,8 +324,8 @@ blup_prep <- function(data,vcov=NULL,geno=NULL,vars,mask=NULL,method=NULL) {
   n.fix <- ncol(X)
   m <- ncol(Z)
   n <- nrow(Z)
-  var.u <- crossprod(Gmat$mat)
-  
+  var.u <- Gmat$mat
+
   if (is.null(method)) {
     if (m < n) {
       method <- "MME"
@@ -329,55 +335,67 @@ blup_prep <- function(data,vcov=NULL,geno=NULL,vars,mask=NULL,method=NULL) {
   }
   
   if (method=="MME") {
-    #Construct MME coefficient matrix
-    tmp <- mapply(function(a,b){chol(solve(as(a+b,"dpoMatrix")))},omega.list,Rlist)
+    #Construct MME coefficient matrix.
+    #Only crossprod(Rinv) = solve(omega+R) is needed, so factor once and invert the
+    #triangle, rather than forming the inverse and factoring it again.
+    tmp <- mapply(function(a,b){
+                    U <- chol(as.matrix(a+b))
+                    t(backsolve(U, diag(nrow(U))))
+                  },omega.list,Rlist,SIMPLIFY=FALSE)
     Rinv <- bdiag(tmp)
-  
+
     RZ <- Rinv %*% Z
     RX <- Rinv %*% X
     Q <- cbind(RX, RZ)
-  
-    MME <- as(crossprod(Q) + crossprod(cbind(Matrix(0,ncol=n.fix,nrow=m),Gmat$inv)),"symmetricMatrix")
-    MME.inv <- as(solve(MME),"symmetricMatrix")
-    soln <- MME.inv %*% crossprod(Q,Rinv%*%data$BLUE)
-    fixed <- as.numeric(soln[1:n.fix])
+
+    random.ix <- (n.fix+1):(n.fix+m)
+
+    #When geno is supplied, Gmat$inv is the dense G-inverse and the random-effect block
+    #of MME is dense, so sparse storage/factorization is all overhead: use LAPACK.
+    #Without markers Gmat$inv really is sparse, and the sparse path stays faster.
+    if (nnzero(Gmat$inv)/prod(dim(Gmat$inv)) > 0.2) {
+      MME <- as.matrix(crossprod(Q))
+      MME[random.ix,random.ix] <- MME[random.ix,random.ix] + as.matrix(Gmat$inv)
+      MME.inv <- chol2inv(chol(MME))
+    } else {
+      MME <- as(crossprod(Q) + bdiag(Matrix(0,nrow=n.fix,ncol=n.fix),Gmat$inv),"symmetricMatrix")
+      MME.inv <- as(solve(MME),"symmetricMatrix")
+    }
+
+    soln <- as.numeric(MME.inv %*% as.numeric(crossprod(Q,Rinv%*%data$BLUE)))
+    fixed <- soln[1:n.fix]
     names(fixed) <- colnames(X)
-    random.ix <- (n.fix+1):length(soln)
-    random <- as.numeric(soln[random.ix])
+    random <- soln[random.ix]
     var.uhat <- var.u - MME.inv[random.ix,random.ix]
-    var.bhat <- MME.inv[(1:n.fix),(1:n.fix)]
+    var.bhat <- forceSymmetric(Matrix(MME.inv[(1:n.fix),(1:n.fix),drop=FALSE]))
     dimnames(var.bhat) <- list(names(fixed),names(fixed))
-    cov.buhat <- -MME.inv[(1:n.fix),random.ix]
-    
+    cov.buhat <- Matrix(-MME.inv[(1:n.fix),random.ix,drop=FALSE])
+
   } else {
     #invert V
     tmp <- mapply(function(a,b){as(a+b,"dpoMatrix")},omega.list,Rlist)
     Rmat <- bdiag(tmp)
-    
-    Vinv <- as(solve(as(tcrossprod(Z %*% t(Gmat$mat)) + Rmat,"symmetricMatrix")),"symmetricMatrix")
-    chol.Vinv <- chol(Vinv)
-    
-    tmp <- crossprod(chol.Vinv%*%X)
+
+    Zvar.u <- Z %*% var.u
+    Vinv <- as(solve(as(tcrossprod(Zvar.u, Z) + Rmat,"symmetricMatrix")),"symmetricMatrix")
+
+    #P = Vinv - VX %*% var.bhat %*% t(VX) is the projection matrix. Forming it from
+    #VX (n x n.fix) avoids the O(n^3) Cholesky factorizations of V and of I - HX.
+    VX <- Vinv %*% X
+    tmp <- crossprod(X, VX)
     tmp2 <- try(solve(tmp),silent=TRUE)
     if (is(tmp2,"try-error"))
       tmp2 <- MASS::ginv(as.matrix(tmp))
     var.bhat <- forceSymmetric(tmp2)
-    fixed <- as.numeric(tcrossprod(var.bhat,X) %*% Vinv %*% data$BLUE)
+    fixed <- as.numeric(var.bhat %*% crossprod(VX, data$BLUE))
     names(fixed) <- colnames(X)
     dimnames(var.bhat) <- list(names(fixed),names(fixed))
-    
-    W <- tcrossprod(var.bhat, chol.Vinv %*% X)
-    tmp <- Diagonal(n=n) - chol.Vinv %*% X %*% W
-    WW <- forceSymmetric(tmp)
-    cholWW <- suppressWarnings(try(chol(WW),silent=TRUE))
-    if (is(cholWW,"try-error")) {
-      cholWW <- chol(WW + Diagonal(n=n,x=1e-6))
-    }
-    Zvar.u <- Z %*% var.u
-    GZtP <- crossprod(Zvar.u, crossprod(cholWW %*% chol.Vinv))
-    random <- as.numeric(GZtP %*% data$BLUE)
-    var.uhat <- GZtP %*% Zvar.u
-    cov.buhat <- W %*% chol.Vinv %*% Zvar.u
+
+    VXtZG <- crossprod(VX, Zvar.u)                          #n.fix x m
+    PZvar.u <- Vinv %*% Zvar.u - VX %*% (var.bhat %*% VXtZG)
+    random <- as.numeric(crossprod(PZvar.u, data$BLUE))
+    var.uhat <- forceSymmetric(crossprod(Zvar.u, PZvar.u))
+    cov.buhat <- var.bhat %*% VXtZG
   }
   
   fixed.marker <- numeric(0)

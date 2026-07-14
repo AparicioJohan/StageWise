@@ -209,9 +209,8 @@ blup <- function(data, geno=NULL, what, index.coeff=NULL, gwas.ncore=0L) {
   }
   
   if (what=="AM") {
-    G <- kron(geno@eigen.G,1)
     id <- rownames(geno@eigen.G$vectors)
-    Ginv <- crossprod(G$inv)
+    Ginv <- eigen_inverse(geno@eigen.G)
     dimnames(Ginv) <- list(id,id)
     M <- kronecker(crossprod(geno@coeff/geno@scale,Ginv[rownames(geno@coeff),]),
                    matrix(index.coeff,nrow=1))
@@ -219,8 +218,7 @@ blup <- function(data, geno=NULL, what, index.coeff=NULL, gwas.ncore=0L) {
     effect <- effect.ran
     V <- data@var.uhat[1:n.random,1:n.random] #used for GWAS
   } else {
-    D <- kron(geno@eigen.D,1)
-    M <- kronecker(crossprod((geno@coeff.D/geno@scale.D),crossprod(D$inv)),matrix(index.coeff,nrow=1))
+    M <- kronecker(crossprod((geno@coeff.D/geno@scale.D),eigen_inverse(geno@eigen.D)),matrix(index.coeff,nrow=1))
     
     dhat.fix <- -kronecker(matrix(geno@Fg[data@id],ncol=1),matrix(data@heterosis,ncol=1))
     dhat.ran <- matrix(data@random[n.random + 1:n.random],ncol=1)
