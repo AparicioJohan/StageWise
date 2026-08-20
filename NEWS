@@ -1,5 +1,6 @@
 Changes in 1.18
 
+* S3 method for `Stage1` objects.
 * Improving blup preparation (`blup` and `blup_prep`) to make calculations faster.
 
 Changes in 1.17
