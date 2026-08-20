@@ -1,3 +1,7 @@
+Changes in 1.18
+
+* Improving blup preparation (`blup` and `blup_prep`) to make calculations faster.
+
 Changes in 1.17
 * fixed error with read-geno H matrix calculation when founders are not included in pedigree
 
