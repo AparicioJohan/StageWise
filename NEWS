@@ -1,6 +1,7 @@
 Changes in 1.18
 
-* S3 method for `Stage1` objects.
+* S4 method show for `read_geno` output.
+* S3 method for `Stage1` object.
 * Improving blup preparation (`blup` and `blup_prep`) to make calculations faster.
 
 Changes in 1.17

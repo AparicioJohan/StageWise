@@ -62,3 +62,56 @@ print.Stage1 <- function(x, ...) {
   cat("\n")
   invisible(x)
 }
+
+#' Show an object of class \code{class_genoD}
+#'
+#' @param object An object of class \code{class_genoD}.
+#'
+#' @return Invisibly returns \code{object}.
+#'
+#' @method show class_genoD
+#' @export
+setMethod("show", "class_genoD", function(object) {
+  n_ind <- nrow(object@coeff)
+  n_markers <- ncol(object@coeff)
+  cat("<class_genoD>\n\n")
+  cat("Genotypic data:\n")
+  cat("  Individuals :", n_ind, "\n")
+  cat("  Markers     :", n_markers, "\n")
+  cat("  Ploidy      :", object@ploidy, "\n")
+  cat("\nRelationship matrices:\n")
+  cat("  Additive    :", paste(dim(object@G), collapse = " x "), "\n")
+  cat("  Dominance   :", paste(dim(object@D), collapse = " x "), "\n")
+  if (!is.null(object@map)) {
+    cat("\nMap: available\n\n")
+  } else {
+    cat("\nMap: not available\n\n")
+  }
+  invisible(object)
+})
+
+#' Show an object of class \code{class_geno}
+#'
+#' @param object An object of class \code{class_geno}.
+#'
+#' @return Invisibly returns \code{object}.
+#'
+#' @method show class_geno
+#' @export
+setMethod("show", "class_geno", function(object) {
+  n_ind <- nrow(object@coeff)
+  n_markers <- ncol(object@coeff)
+  cat("<class_geno>\n\n")
+  cat("Genotypic data:\n")
+  cat("  Individuals :", n_ind, "\n")
+  cat("  Markers     :", n_markers, "\n")
+  cat("  Ploidy      :", object@ploidy, "\n")
+  cat("\nRelationship matrix:\n")
+  cat("  Additive    :", paste(dim(object@G), collapse = " x "), "\n")
+  if (!is.null(object@map)) {
+    cat("\nMap: available\n\n")
+  } else {
+    cat("\nMap: not available\n\n")
+  }
+  invisible(object)
+})
