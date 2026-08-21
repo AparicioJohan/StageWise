@@ -11,6 +11,7 @@ Encoding: UTF-8
 Imports: Matrix (>= 1.5-0), ggplot2, methods, ggrepel, rlang, ggpubr, SpATS, spam, polyBreedR, MASS, CVXR, ggforce, data.table
 Suggests: knitr, rmarkdown, asreml
 Collate: 
+    'S3_classes.R'
     'Stage1.R'
     'Stage2.R'
     'blup.R'
